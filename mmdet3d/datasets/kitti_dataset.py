@@ -163,6 +163,7 @@ class KittiDataset(Custom3DDataset):
         dims = annos['dimensions']
         rots = annos['rotation_y']
         gt_names = annos['name']
+        gt_num_points = annos['num_points_in_gt']
         gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]],
                                       axis=1).astype(np.float32)
 
@@ -174,6 +175,8 @@ class KittiDataset(Custom3DDataset):
         selected = self.drop_arrays_by_name(gt_names, ['DontCare'])
         gt_bboxes = gt_bboxes[selected].astype('float32')
         gt_names = gt_names[selected]
+        gt_num_points = gt_num_points[selected]
+        gt_num_points = np.array(gt_num_points)
 
         gt_labels = []
         for cat in gt_names:
@@ -189,7 +192,8 @@ class KittiDataset(Custom3DDataset):
             gt_labels_3d=gt_labels_3d,
             bboxes=gt_bboxes,
             labels=gt_labels,
-            gt_names=gt_names)
+            gt_names=gt_names,
+            gt_num_points=gt_num_points)
         return anns_results
 
     def drop_arrays_by_name(self, gt_names, used_classes):

@@ -284,7 +284,7 @@ class ObjectSample(object):
         """
         gt_bboxes_3d = input_dict['gt_bboxes_3d']
         gt_labels_3d = input_dict['gt_labels_3d']
-
+        gt_num_points = input_dict['ann_info']['gt_num_points']
         # change to float for blending operation
         points = input_dict['points']
         if self.sample_2d:
@@ -304,12 +304,15 @@ class ObjectSample(object):
             sampled_gt_bboxes_3d = sampled_dict['gt_bboxes_3d']
             sampled_points = sampled_dict['points']
             sampled_gt_labels = sampled_dict['gt_labels_3d']
+            sampled_gt_num_points = sampled_dict['gt_num_points']
 
             gt_labels_3d = np.concatenate([gt_labels_3d, sampled_gt_labels],
                                           axis=0)
             gt_bboxes_3d = gt_bboxes_3d.new_box(
                 np.concatenate(
                     [gt_bboxes_3d.tensor.numpy(), sampled_gt_bboxes_3d]))
+            gt_num_points = np.concatenate([gt_num_points, sampled_gt_num_points],
+                                          axis=0)
 
             points = self.remove_points_in_boxes(points, sampled_gt_bboxes_3d)
             # check the points dimension
@@ -325,6 +328,7 @@ class ObjectSample(object):
 
         input_dict['gt_bboxes_3d'] = gt_bboxes_3d
         input_dict['gt_labels_3d'] = gt_labels_3d.astype(np.long)
+        input_dict['ann_info']['gt_num_points'] = gt_num_points
         input_dict['points'] = points
 
         return input_dict
@@ -720,6 +724,8 @@ class ObjectRangeFilter(object):
 
         gt_bboxes_3d = input_dict['gt_bboxes_3d']
         gt_labels_3d = input_dict['gt_labels_3d']
+        gt_num_points = input_dict['ann_info']['gt_num_points']
+
         mask = gt_bboxes_3d.in_range_bev(bev_range)
         gt_bboxes_3d = gt_bboxes_3d[mask]
         # mask is a torch tensor but gt_labels_3d is still numpy array
@@ -727,12 +733,14 @@ class ObjectRangeFilter(object):
         # len(gt_labels_3d) == 1, where mask=1 will be interpreted
         # as gt_labels_3d[1] and cause out of index error
         gt_labels_3d = gt_labels_3d[mask.numpy().astype(np.bool)]
+        gt_num_points = gt_num_points[mask.numpy().astype(np.bool)]
 
         # limit rad to [-pi, pi]
         gt_bboxes_3d.limit_yaw(offset=0.5, period=2 * np.pi)
         input_dict['gt_bboxes_3d'] = gt_bboxes_3d
         input_dict['gt_labels_3d'] = gt_labels_3d
-
+        input_dict['ann_info']['gt_num_points'] = gt_num_points
+        
         return input_dict
 
     def __repr__(self):

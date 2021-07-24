@@ -1,4 +1,5 @@
 from .anchor3d_head import Anchor3DHead
+from .custom_anchor3d_head import CustomAnchor3DHead
 from .anchor_free_mono3d_head import AnchorFreeMono3DHead
 from .base_conv_bbox_head import BaseConvBboxHead
 from .base_mono3d_dense_head import BaseMono3DDenseHead
@@ -12,7 +13,7 @@ from .ssd_3d_head import SSD3DHead
 from .vote_head import VoteHead
 
 __all__ = [
-    'Anchor3DHead', 'FreeAnchor3DHead', 'PartA2RPNHead', 'VoteHead',
+    'Anchor3DHead', 'CustomAnchor3DHead', 'FreeAnchor3DHead', 'PartA2RPNHead', 'VoteHead',
     'SSD3DHead', 'BaseConvBboxHead', 'CenterHead', 'ShapeAwareHead',
     'BaseMono3DDenseHead', 'AnchorFreeMono3DHead', 'FCOSMono3DHead',
     'GroupFree3DHead'

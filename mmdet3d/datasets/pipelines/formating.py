@@ -73,7 +73,6 @@ class DefaultFormatBundle(object):
         if 'gt_semantic_seg' in results:
             results['gt_semantic_seg'] = DC(
                 to_tensor(results['gt_semantic_seg'][None, ...]), stack=True)
-
         return results
 
     def __repr__(self):
@@ -140,7 +139,7 @@ class Collect3D(object):
                             'pcd_vertical_flip', 'box_mode_3d', 'box_type_3d',
                             'img_norm_cfg', 'rect', 'Trv2c', 'P2', 'pcd_trans',
                             'sample_idx', 'pcd_scale_factor', 'pcd_rotation',
-                            'pts_filename', 'transformation_3d_flow')):
+                            'pts_filename', 'transformation_3d_flow', 'gt_num_points')):
         self.keys = keys
         self.meta_keys = meta_keys
 
@@ -161,7 +160,8 @@ class Collect3D(object):
         for key in self.meta_keys:
             if key in results:
                 img_metas[key] = results[key]
-
+            elif 'ann_info' in results and key in results['ann_info']:
+                img_metas[key] = results['ann_info'][key]
         data['img_metas'] = DC(img_metas, cpu_only=True)
         for key in self.keys:
             data[key] = results[key]

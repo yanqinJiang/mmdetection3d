@@ -247,6 +247,7 @@ class DataBaseSampler(object):
 
             # num_sampled = len(sampled)
             s_points_list = []
+            s_pt_nums_list = []
             count = 0
             for info in sampled:
                 file_path = os.path.join(
@@ -259,9 +260,12 @@ class DataBaseSampler(object):
                 count += 1
 
                 s_points_list.append(s_points)
+                s_pt_nums_list.append(info['num_points_in_gt'])
 
             gt_labels = np.array([self.cat2label[s['name']] for s in sampled],
                                  dtype=np.long)
+            s_pt_nums_list = np.array(s_pt_nums_list)
+            
             ret = {
                 'gt_labels_3d':
                 gt_labels,
@@ -269,6 +273,8 @@ class DataBaseSampler(object):
                 sampled_gt_bboxes,
                 'points':
                 s_points_list[0].cat(s_points_list),
+                'gt_num_points':
+                s_pt_nums_list,
                 'group_ids':
                 np.arange(gt_bboxes.shape[0],
                           gt_bboxes.shape[0] + len(sampled))

@@ -150,7 +150,7 @@ def test_anchor3d_head_loss():
     if not torch.cuda.is_available():
         pytest.skip('test requires GPU and torch+cuda')
     bbox_head_cfg = _get_head_cfg(
-        'second/hv_second_secfpn_6x8_80e_kitti-3d-3class.py')
+        'second/custom_hv_second_secfpn_6x8_80e_kitti-3d-3class.py')
 
     from mmdet3d.models.builder import build_head
     self = build_head(bbox_head_cfg)
@@ -164,10 +164,11 @@ def test_anchor3d_head_loss():
     # test forward
     feats = list()
     feats.append(torch.rand([2, 512, 200, 176], dtype=torch.float32).cuda())
-    (cls_score, bbox_pred, dir_cls_preds) = self.forward(feats)
+    (cls_score, bbox_pred, dir_cls_preds, custom_preds) = self.forward(feats)
     assert cls_score[0].shape == torch.Size([2, 18, 200, 176])
     assert bbox_pred[0].shape == torch.Size([2, 42, 200, 176])
     assert dir_cls_preds[0].shape == torch.Size([2, 12, 200, 176])
+    assert custom_preds[0].shape == torch.Size([2, 18, 200, 176])
 
     # test loss
     gt_bboxes = list(
@@ -177,12 +178,14 @@ def test_anchor3d_head_loss():
             dtype=torch.float32).cuda())
     gt_labels = list(torch.tensor([[0], [1]], dtype=torch.int64).cuda())
     input_metas = [{
-        'sample_idx': 1234
+        'sample_idx': 1234,
+        'gt_num_points': np.random.randn(1)
     }, {
-        'sample_idx': 2345
+        'sample_idx': 2345,
+        'gt_num_points': np.random.randn(1)
     }]  # fake input_metas
 
-    losses = self.loss(cls_score, bbox_pred, dir_cls_preds, gt_bboxes,
+    losses = self.loss(cls_score, bbox_pred, dir_cls_preds, custom_preds, gt_bboxes,
                        gt_labels, input_metas)
     assert losses['loss_cls'][0] > 0
     assert losses['loss_bbox'][0] > 0
@@ -1221,3 +1224,6 @@ def test_groupfree3d_head():
     assert results[0][0].tensor.shape[1] == 7
     assert results[0][1].shape[0] >= 0
     assert results[0][2].shape[0] >= 0
+
+if __name__ == '__main__':
+    test_anchor3d_head_loss()

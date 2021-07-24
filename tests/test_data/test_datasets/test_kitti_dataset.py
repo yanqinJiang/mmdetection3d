@@ -7,6 +7,153 @@ import torch
 from mmdet3d.core.bbox import LiDARInstance3DBoxes
 from mmdet3d.datasets import KittiDataset
 
+'''
+Kitti Dataset
+'''
+# dataset settings
+dataset_type = 'KittiDataset'
+data_root = 'data/kitti/'
+class_names = ['Pedestrian', 'Cyclist', 'Car']
+point_cloud_range = [0, -40, -3, 70.4, 40, 1]
+input_modality = dict(use_lidar=True, use_camera=False)
+split='training'
+pts_prefix='velodyne_reduced'
+ann_file=data_root + 'kitti_infos_val.pkl'
+db_sampler = dict(
+    data_root=data_root,
+    info_path=data_root + 'kitti_dbinfos_train.pkl',
+    rate=1.0,
+    prepare=dict(
+        filter_by_difficulty=[-1],
+        filter_by_min_points=dict(Car=5, Pedestrian=10, Cyclist=10)),
+    classes=class_names,
+    sample_groups=dict(Car=12, Pedestrian=6, Cyclist=6))
+
+file_client_args = dict(backend='disk')
+# Uncomment the following if use ceph or other file clients.
+# See https://mmcv.readthedocs.io/en/latest/api.html#mmcv.fileio.FileClient
+# for more details.
+# file_client_args = dict(
+#     backend='petrel', path_mapping=dict(data='s3://kitti_data/'))
+
+train_pipeline = [
+    dict(
+        type='LoadPointsFromFile',
+        coord_type='LIDAR',
+        load_dim=4,
+        use_dim=4,
+        file_client_args=file_client_args),
+    dict(
+        type='LoadAnnotations3D',
+        with_bbox_3d=True,
+        with_label_3d=True,
+        file_client_args=file_client_args),
+    dict(type='ObjectSample', db_sampler=db_sampler),
+    dict(
+        type='ObjectNoise',
+        num_try=100,
+        translation_std=[1.0, 1.0, 0.5],
+        global_rot_range=[0.0, 0.0],
+        rot_range=[-0.78539816, 0.78539816]),
+    dict(type='RandomFlip3D', flip_ratio_bev_horizontal=0.5),
+    dict(
+        type='GlobalRotScaleTrans',
+        rot_range=[-0.78539816, 0.78539816],
+        scale_ratio_range=[0.95, 1.05]),
+    dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
+    dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
+    dict(type='PointShuffle'),
+    dict(type='DefaultFormatBundle3D', class_names=class_names),
+    dict(type='Collect3D', keys=['points', 'gt_bboxes_3d', 'gt_labels_3d'])
+]
+test_pipeline = [
+    dict(
+        type='LoadPointsFromFile',
+        coord_type='LIDAR',
+        load_dim=4,
+        use_dim=4,
+        file_client_args=file_client_args),
+    dict(
+        type='MultiScaleFlipAug3D',
+        img_scale=(1333, 800),
+        pts_scale_ratio=1,
+        flip=False,
+        transforms=[
+            dict(
+                type='GlobalRotScaleTrans',
+                rot_range=[0, 0],
+                scale_ratio_range=[1., 1.],
+                translation_std=[0, 0, 0]),
+            dict(type='RandomFlip3D'),
+            dict(
+                type='PointsRangeFilter', point_cloud_range=point_cloud_range),
+            dict(
+                type='DefaultFormatBundle3D',
+                class_names=class_names,
+                with_label=False),
+            dict(type='Collect3D', keys=['points'])
+        ])
+]
+
+# construct a pipeline for data and gt loading in show function
+# please keep its loading function consistent with test_pipeline (e.g. client)
+eval_pipeline = [
+    dict(
+        type='LoadPointsFromFile',
+        coord_type='LIDAR',
+        load_dim=4,
+        use_dim=4,
+        file_client_args=file_client_args),
+    dict(
+        type='DefaultFormatBundle3D',
+        class_names=class_names,
+        with_label=False),
+    dict(type='Collect3D', keys=['points'])
+]
+
+data = dict(
+    samples_per_gpu=6,
+    workers_per_gpu=4,
+    train=dict(
+        type='RepeatDataset',
+        times=2,
+        dataset=dict(
+            type=dataset_type,
+            data_root=data_root,
+            ann_file=data_root + 'kitti_infos_train.pkl',
+            split='training',
+            pts_prefix='velodyne_reduced',
+            pipeline=train_pipeline,
+            modality=input_modality,
+            classes=class_names,
+            test_mode=False,
+            # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
+            # and box_type_3d='Depth' in sunrgbd and scannet dataset.
+            box_type_3d='LiDAR')),
+    val=dict(
+        type=dataset_type,
+        data_root=data_root,
+        ann_file=data_root + 'kitti_infos_val.pkl',
+        split='training',
+        pts_prefix='velodyne_reduced',
+        pipeline=test_pipeline,
+        modality=input_modality,
+        classes=class_names,
+        test_mode=True,
+        box_type_3d='LiDAR'),
+    test=dict(
+        type=dataset_type,
+        data_root=data_root,
+        ann_file=data_root + 'kitti_infos_val.pkl',
+        split='training',
+        pts_prefix='velodyne_reduced',
+        pipeline=test_pipeline,
+        modality=input_modality,
+        classes=class_names,
+        test_mode=True,
+        box_type_3d='LiDAR'))
+
+evaluation = dict(interval=1, pipeline=eval_pipeline)
 
 def _generate_kitti_dataset_config():
     data_root = 'tests/data/kitti'
@@ -94,8 +241,8 @@ def _generate_kitti_multi_modality_dataset_config():
 
 def test_getitem():
     np.random.seed(0)
-    data_root, ann_file, classes, pts_prefix, \
-        _, modality, split = _generate_kitti_dataset_config()
+    # data_root, ann_file, classes, pts_prefix, \
+    #     _, modality, split = _generate_kitti_dataset_config()
     pipeline = [
         dict(
             type='LoadPointsFromFile',
@@ -144,8 +291,10 @@ def test_getitem():
             type='Collect3D', keys=['points', 'gt_bboxes_3d', 'gt_labels_3d'])
     ]
     kitti_dataset = KittiDataset(data_root, ann_file, split, pts_prefix,
-                                 pipeline, classes, modality)
+                                 train_pipeline, class_names, input_modality)
     data = kitti_dataset[0]
+    import ipdb
+    ipdb.set_trace()
     points = data['points']._data
     gt_bboxes_3d = data['gt_bboxes_3d']._data
     gt_labels_3d = data['gt_labels_3d']._data
@@ -157,55 +306,55 @@ def test_getitem():
         gt_bboxes_3d.tensor, expected_gt_bboxes_3d, atol=1e-4)
     assert torch.all(gt_labels_3d == expected_gt_labels_3d)
 
-    # test multi-modality KITTI dataset
-    np.random.seed(0)
-    point_cloud_range = [0, -40, -3, 70.4, 40, 1]
-    img_norm_cfg = dict(
-        mean=[103.530, 116.280, 123.675], std=[1.0, 1.0, 1.0], to_rgb=False)
-    multi_modality_pipeline = [
-        dict(
-            type='LoadPointsFromFile',
-            coord_type='LIDAR',
-            load_dim=4,
-            use_dim=4),
-        dict(type='LoadImageFromFile'),
-        dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
-        dict(
-            type='Resize',
-            img_scale=[(640, 192), (2560, 768)],
-            multiscale_mode='range',
-            keep_ratio=True),
-        dict(
-            type='GlobalRotScaleTrans',
-            rot_range=[-0.78539816, 0.78539816],
-            scale_ratio_range=[0.95, 1.05],
-            translation_std=[0.2, 0.2, 0.2]),
-        dict(type='RandomFlip3D', flip_ratio_bev_horizontal=0.5),
-        dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
-        dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
-        dict(type='PointShuffle'),
-        dict(type='Normalize', **img_norm_cfg),
-        dict(type='Pad', size_divisor=32),
-        dict(type='DefaultFormatBundle3D', class_names=classes),
-        dict(
-            type='Collect3D',
-            keys=['points', 'img', 'gt_bboxes_3d', 'gt_labels_3d']),
-    ]
-    modality = dict(use_lidar=True, use_camera=True)
-    kitti_dataset = KittiDataset(data_root, ann_file, split, pts_prefix,
-                                 multi_modality_pipeline, classes, modality)
-    data = kitti_dataset[0]
-    img = data['img']._data
-    lidar2img = data['img_metas']._data['lidar2img']
+    # # test multi-modality KITTI dataset
+    # np.random.seed(0)
+    # point_cloud_range = [0, -40, -3, 70.4, 40, 1]
+    # img_norm_cfg = dict(
+    #     mean=[103.530, 116.280, 123.675], std=[1.0, 1.0, 1.0], to_rgb=False)
+    # multi_modality_pipeline = [
+    #     dict(
+    #         type='LoadPointsFromFile',
+    #         coord_type='LIDAR',
+    #         load_dim=4,
+    #         use_dim=4),
+    #     dict(type='LoadImageFromFile'),
+    #     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
+    #     dict(
+    #         type='Resize',
+    #         img_scale=[(640, 192), (2560, 768)],
+    #         multiscale_mode='range',
+    #         keep_ratio=True),
+    #     dict(
+    #         type='GlobalRotScaleTrans',
+    #         rot_range=[-0.78539816, 0.78539816],
+    #         scale_ratio_range=[0.95, 1.05],
+    #         translation_std=[0.2, 0.2, 0.2]),
+    #     dict(type='RandomFlip3D', flip_ratio_bev_horizontal=0.5),
+    #     dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
+    #     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
+    #     dict(type='PointShuffle'),
+    #     dict(type='Normalize', **img_norm_cfg),
+    #     dict(type='Pad', size_divisor=32),
+    #     dict(type='DefaultFormatBundle3D', class_names=classes),
+    #     dict(
+    #         type='Collect3D',
+    #         keys=['points', 'img', 'gt_bboxes_3d', 'gt_labels_3d']),
+    # ]
+    # modality = dict(use_lidar=True, use_camera=True)
+    # kitti_dataset = KittiDataset(data_root, ann_file, split, pts_prefix,
+    #                              multi_modality_pipeline, class_names, modality)
+    # data = kitti_dataset[0]
+    # img = data['img']._data
+    # lidar2img = data['img_metas']._data['lidar2img']
 
-    expected_lidar2img = np.array(
-        [[6.02943726e+02, -7.07913330e+02, -1.22748432e+01, -1.70942719e+02],
-         [1.76777252e+02, 8.80879879e+00, -7.07936157e+02, -1.02568634e+02],
-         [9.99984801e-01, -1.52826728e-03, -5.29071223e-03, -3.27567995e-01],
-         [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
+    # expected_lidar2img = np.array(
+    #     [[6.02943726e+02, -7.07913330e+02, -1.22748432e+01, -1.70942719e+02],
+    #      [1.76777252e+02, 8.80879879e+00, -7.07936157e+02, -1.02568634e+02],
+    #      [9.99984801e-01, -1.52826728e-03, -5.29071223e-03, -3.27567995e-01],
+    #      [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
 
-    assert img.shape[:] == (3, 416, 1344)
-    assert np.allclose(lidar2img, expected_lidar2img)
+    # assert img.shape[:] == (3, 416, 1344)
+    # assert np.allclose(lidar2img, expected_lidar2img)
 
 
 def test_evaluate():
@@ -443,3 +592,6 @@ def test_bbox2result_kitti2d():
     assert np.all(det_annos[0]['name'] == expected_name)
     assert np.allclose(det_annos[0]['bbox'], expected_bbox)
     assert np.allclose(det_annos[0]['score'], expected_score)
+
+if __name__ == "__main__":
+    test_getitem()
