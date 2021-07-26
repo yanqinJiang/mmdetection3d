@@ -10,7 +10,7 @@ from mmdet.core import (build_anchor_generator, build_assigner,
 from mmdet.models import HEADS
 from ..builder import build_loss
 from .custom_train_mixins import CustomAnchorTrainMixin
-
+from ...utils import GradReverse
 
 @HEADS.register_module()
 class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
@@ -115,6 +115,9 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
         self.loss_custom = build_loss(loss_custom)
         self.fp16_enabled = False
 
+        # decide whether to use GRL
+        self.grad_reverse = self.custom_cfg.get('grad_reverse', False)
+
         self._init_layers()
         self._init_assigner_sampler()
 
@@ -166,7 +169,11 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
         """
         cls_score = self.conv_cls(x)
         bbox_pred = self.conv_reg(x)
-        custom_pred = self.conv_custom(x)
+        if self.grad_reverse:
+            reverse_weight = self.custom_cfg.get('reverse_weight', 0.1)
+            custom_pred = self.conv_custom(GradReverse.apply(x, reverse_weight))
+        else:
+            custom_pred = self.conv_custom(x)
         dir_cls_preds = None
         if self.use_direction_classifier:
             dir_cls_preds = self.conv_dir_cls(x)

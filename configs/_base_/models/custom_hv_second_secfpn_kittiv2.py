@@ -20,10 +20,12 @@ model = dict(
         layer_strides=[1, 2],
         out_channels=[128, 256]),
     neck=dict(
-        type='SECONDFPN',
+        type='SECONDFPN_EMBEDDING',
         in_channels=[128, 256],
         upsample_strides=[1, 2],
-        out_channels=[256, 256]),
+        out_channels=[256, 256],
+        map_enabled=True,
+        point_cloud_range=[0, -40, -3, 70.4, 40, 1],),
     bbox_head=dict(
         type='CustomAnchor3DHead',
         num_classes=3,
@@ -53,12 +55,12 @@ model = dict(
         loss_dir=dict(
             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.2),
         loss_custom=dict(
-            type='CrossEntropyLoss', use_sigmoid=True, loss_weight=0.5),
+            type='CrossEntropyLoss', use_sigmoid=True, loss_weight=0.3),
         custom_cfg=dict(
             type='distance', 
             divide=[0, 20, 35, 100000],
             grad_reverse=True,
-            reverse_weight=0.05),),
+            reverse_weight=0.15),),
     # model training and testing settings
     train_cfg=dict(
         assigner=[
