@@ -37,15 +37,16 @@ class SECONDFPN_EMBEDDING(BaseModule):
         # cfg is dict(type='GN', num_groups=num_groups, eps=1e-3, affine=True)
         super(SECONDFPN_EMBEDDING, self).__init__(init_cfg=init_cfg)
         assert len(out_channels) == len(upsample_strides) == len(in_channels)
-        self.in_channels = in_channels
         self.out_channels = out_channels
         self.map_enabled = map_enabled
         self.point_cloud_range = point_cloud_range
         self.fp16_enabled = False
 
         if self.map_enabled:
-            self.in_channels = [c+1 for c in self.in_channels] # extra dim for distance/density map
+            in_channels = [c+1 for c in in_channels] # extra dim for distance/density map
         deblocks = []
+        self.in_channels = in_channels
+
         for i, out_channel in enumerate(out_channels):
             stride = upsample_strides[i]
             if stride > 1 or (stride == 1 and not use_conv_for_no_stride):
@@ -96,7 +97,7 @@ class SECONDFPN_EMBEDDING(BaseModule):
             yi = torch.linspace(self.point_cloud_range[1], self.point_cloud_range[4], input_sizes[i][0], device='cuda')
             xiyi = torch.meshgrid(yi, xi)
             map = torch.sqrt(xiyi[0]**2 + xiyi[1]**2)
-            map = torch.expand(x[i].shape[0], 1, -1, -1)
+            map = map.expand(x[i].shape[0], 1, -1, -1)
             x[i] = torch.cat([x[i], map], dim=1)
         x = tuple(x)
         ups = [deblock(x[i]) for i, deblock in enumerate(self.deblocks)]
