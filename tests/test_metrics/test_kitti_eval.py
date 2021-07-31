@@ -2,11 +2,11 @@ import numpy as np
 import pytest
 import torch
 
-from mmdet3d.core.evaluation.kitti_utils.eval import (do_eval, eval_class,
-                                                      kitti_eval)
+from mmdet3d.core.evaluation.kitti_utils.custom_eval import (custom_do_eval, custom_eval_class,
+                                                      custom_kitti_eval)
 
 
-def test_do_eval():
+def test_custom_do_eval():
     if not torch.cuda.is_available():
         pytest.skip('test requires GPU and CUDA')
     gt_name = np.array(
@@ -66,6 +66,9 @@ def test_do_eval():
                         [758.6537, 172.98509, 816.32434, 212.76743]])
     dt_score = np.array(
         [0.18151495, 0.57920843, 0.27795696, 0.23100418, 0.21541929])
+    dt_custom = np.array(
+        [1.5, 2.9, 30.2, 40.8, 60.3]
+    )
     dt_anno = dict(
         name=dt_name,
         truncated=dt_truncated,
@@ -75,16 +78,17 @@ def test_do_eval():
         dimensions=dt_dimensions,
         location=dt_location,
         rotation_y=dt_rotation_y,
-        score=dt_score)
+        score=dt_score,
+        custom=dt_custom)
     current_classes = [1, 2, 0]
     min_overlaps = np.array([[[0.5, 0.5, 0.7], [0.5, 0.5, 0.7],
                               [0.5, 0.5, 0.7]],
                              [[0.5, 0.5, 0.7], [0.25, 0.25, 0.5],
                               [0.25, 0.25, 0.5]]])
     eval_types = ['bbox', 'bev', '3d', 'aos']
-    mAP_bbox, mAP_bev, mAP_3d, mAP_aos = do_eval([gt_anno], [dt_anno],
+    mAP_bbox, mAP_bev, mAP_3d, mAP_aos = custom_do_eval([gt_anno], [dt_anno],
                                                  current_classes, min_overlaps,
-                                                 eval_types)
+                                                 eval_types, custom_range=np.array([0, 15, 25, 10000]))
     expected_mAP_bbox = np.array([[[0., 0.], [9.09090909, 9.09090909],
                                    [9.09090909, 9.09090909]],
                                   [[0., 0.], [9.09090909, 9.09090909],
@@ -109,7 +113,7 @@ def test_do_eval():
     assert np.allclose(mAP_aos, expected_mAP_aos)
 
 
-def test_kitti_eval():
+def test_custom_kitti_eval():
     if not torch.cuda.is_available():
         pytest.skip('test requires GPU and CUDA')
     gt_name = np.array(
@@ -169,6 +173,9 @@ def test_kitti_eval():
                         [758.6537, 172.98509, 816.32434, 212.76743]])
     dt_score = np.array(
         [0.18151495, 0.57920843, 0.27795696, 0.23100418, 0.21541929])
+    dt_custom = np.array(
+        [1.5, 2.9, 30.2, 40.8, 60.3]
+    )
     dt_anno = dict(
         name=dt_name,
         truncated=dt_truncated,
@@ -178,15 +185,16 @@ def test_kitti_eval():
         dimensions=dt_dimensions,
         location=dt_location,
         rotation_y=dt_rotation_y,
-        score=dt_score)
+        score=dt_score,
+        custom=dt_custom)
 
     current_classes = [1, 2, 0]
-    result, ret_dict = kitti_eval([gt_anno], [dt_anno], current_classes)
+    result, ret_dict = custom_kitti_eval([gt_anno], [dt_anno], current_classes, custom_range=np.array([0, 15, 25, 10000]))
     assert np.isclose(ret_dict['KITTI/Overall_2D_moderate'], 9.090909090909092)
     assert np.isclose(ret_dict['KITTI/Overall_2D_hard'], 9.090909090909092)
 
 
-def test_eval_class():
+def test_custom_eval_class():
     gt_name = np.array(
         ['Pedestrian', 'Cyclist', 'Car', 'Car', 'Car', 'DontCare', 'DontCare'])
     gt_truncated = np.array([0., 0., 0., -1., -1., -1., -1.])
@@ -199,12 +207,14 @@ def test_eval_class():
                         [758.6537, 172.98509, 816.32434, 212.76743],
                         [532.37, 176.35, 542.68, 185.27],
                         [559.62, 175.83, 575.4, 183.15]])
+    gt_custom = np.array([0, 1, 2, 0, 2, 2, -1])
     gt_anno = dict(
         name=gt_name,
         truncated=gt_truncated,
         occluded=gt_occluded,
         alpha=gt_alpha,
-        bbox=gt_bbox)
+        bbox=gt_bbox,
+        custom=gt_custom)
 
     dt_name = np.array(['Pedestrian', 'Cyclist', 'Car', 'Car', 'Car'])
     dt_truncated = np.array([0., 0., 0., 0., 0.])
@@ -217,13 +227,17 @@ def test_eval_class():
                         [758.6537, 172.98509, 816.32434, 212.76743]])
     dt_score = np.array(
         [0.18151495, 0.57920843, 0.27795696, 0.23100418, 0.21541929])
+    dt_custom = np.array(
+        [1.5, 2.9, 30.2, 40.8, 60.3]
+    )
     dt_anno = dict(
         name=dt_name,
         truncated=dt_truncated,
         occluded=dt_occluded,
         alpha=dt_alpha,
         bbox=dt_bbox,
-        score=dt_score)
+        score=dt_score,
+        custom=dt_custom)
     current_classes = [1, 2, 0]
     difficultys = [0, 1, 2]
     metric = 0
@@ -232,11 +246,16 @@ def test_eval_class():
                              [[0.5, 0.5, 0.7], [0.25, 0.25, 0.5],
                               [0.25, 0.25, 0.5]]])
 
-    ret_dict = eval_class([gt_anno], [dt_anno], current_classes, difficultys,
-                          metric, min_overlaps, True, 1)
+    ret_dict = custom_eval_class([gt_anno], [dt_anno], current_classes, difficultys,
+                          metric, min_overlaps, True, 1, custom_range=np.array([0, 15, 25, 10000]))
+
     recall_sum = np.sum(ret_dict['recall'])
     precision_sum = np.sum(ret_dict['precision'])
     orientation_sum = np.sum(ret_dict['orientation'])
     assert np.isclose(recall_sum, 16)
     assert np.isclose(precision_sum, 16)
     assert np.isclose(orientation_sum, 10.252829201850309)
+
+if __name__ == '__main__':
+
+    test_custom_eval_class()

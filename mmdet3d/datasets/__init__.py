@@ -21,9 +21,9 @@ from .semantickitti_dataset import SemanticKITTIDataset
 from .sunrgbd_dataset import SUNRGBDDataset
 from .utils import get_loading_pipeline
 from .waymo_dataset import WaymoDataset
-
+from .custom_kitti_dataset import CustomKittiDataset
 __all__ = [
-    'KittiDataset', 'KittiMonoDataset', 'GroupSampler',
+    'KittiDataset', 'CustomKittiDataset', 'KittiMonoDataset', 'GroupSampler',
     'DistributedGroupSampler', 'build_dataloader', 'RepeatFactorDataset',
     'DATASETS', 'build_dataset', 'CocoDataset', 'NuScenesDataset',
     'NuScenesMonoDataset', 'LyftDataset', 'ObjectSample', 'RandomFlip3D',

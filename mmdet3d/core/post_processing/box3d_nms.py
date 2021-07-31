@@ -13,13 +13,14 @@ def box3d_multiclass_nms(mlvl_bboxes,
                          cfg,
                          mlvl_dir_scores=None,
                          mlvl_attr_scores=None,
-                         mlvl_bboxes2d=None):
+                         mlvl_bboxes2d=None,
+                         mlvl_custom_scores=None):
     """Multi-class nms for 3D boxes.
 
     Args:
         mlvl_bboxes (torch.Tensor): Multi-level boxes with shape (N, M).
             M is the dimensions of boxes.
-        mlvl_bboxes_for_nms (torch.Tensor): Multi-level boxes with shape
+        mlvl_bboxes_fsor_nms (torch.Tensor): Multi-level boxes with shape
             (N, 5) ([x1, y1, x2, y2, ry]). N is the number of boxes.
         mlvl_scores (torch.Tensor): Multi-level boxes with shape
             (N, C + 1). N is the number of boxes. C is the number of classes.
@@ -47,6 +48,7 @@ def box3d_multiclass_nms(mlvl_bboxes,
     labels = []
     dir_scores = []
     attr_scores = []
+    custom_scores = []
     bboxes2d = []
     for i in range(0, num_classes):
         # get bboxes and scores of this class
@@ -64,8 +66,10 @@ def box3d_multiclass_nms(mlvl_bboxes,
 
         selected = nms_func(_bboxes_for_nms, _scores, cfg.nms_thr)
         _mlvl_bboxes = mlvl_bboxes[cls_inds, :]
+        _custom_scores = mlvl_custom_scores[cls_inds]
         bboxes.append(_mlvl_bboxes[selected])
         scores.append(_scores[selected])
+        custom_scores.append(_custom_scores[selected])
         cls_label = mlvl_bboxes.new_full((len(selected), ),
                                          i,
                                          dtype=torch.long)
@@ -85,6 +89,7 @@ def box3d_multiclass_nms(mlvl_bboxes,
         bboxes = torch.cat(bboxes, dim=0)
         scores = torch.cat(scores, dim=0)
         labels = torch.cat(labels, dim=0)
+        custom_scores = torch.cat(custom_scores, dim=0)
         if mlvl_dir_scores is not None:
             dir_scores = torch.cat(dir_scores, dim=0)
         if mlvl_attr_scores is not None:
@@ -97,6 +102,7 @@ def box3d_multiclass_nms(mlvl_bboxes,
             bboxes = bboxes[inds, :]
             labels = labels[inds]
             scores = scores[inds]
+            custom_scores = custom_scores[inds]
             if mlvl_dir_scores is not None:
                 dir_scores = dir_scores[inds]
             if mlvl_attr_scores is not None:
@@ -107,6 +113,7 @@ def box3d_multiclass_nms(mlvl_bboxes,
         bboxes = mlvl_scores.new_zeros((0, mlvl_bboxes.size(-1)))
         scores = mlvl_scores.new_zeros((0, ))
         labels = mlvl_scores.new_zeros((0, ), dtype=torch.long)
+        custom_scores = mlvl_scores.new_zeros((0, ))
         if mlvl_dir_scores is not None:
             dir_scores = mlvl_scores.new_zeros((0, ))
         if mlvl_attr_scores is not None:
@@ -114,7 +121,7 @@ def box3d_multiclass_nms(mlvl_bboxes,
         if mlvl_bboxes2d is not None:
             bboxes2d = mlvl_scores.new_zeros((0, 4))
 
-    results = (bboxes, scores, labels)
+    results = (bboxes, scores, labels, custom_scores)
 
     if mlvl_dir_scores is not None:
         results = results + (dir_scores, )

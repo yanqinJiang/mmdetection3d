@@ -446,7 +446,7 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
                    cls_scores,
                    bbox_preds,
                    dir_cls_preds,
-                   custom_preds,
+                   custom_scores,
                    input_metas,
                    cfg=None,
                    rescale=False):
@@ -486,10 +486,12 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
             dir_cls_pred_list = [
                 dir_cls_preds[i][img_id].detach() for i in range(num_levels)
             ]
-
+            custom_pred_list = [
+                custom_scores[i][img_id].detach() for i in range(num_levels)
+            ]
             input_meta = input_metas[img_id]
             proposals = self.get_bboxes_single(cls_score_list, bbox_pred_list,
-                                               dir_cls_pred_list, mlvl_anchors,
+                                               dir_cls_pred_list, custom_pred_list, mlvl_anchors,
                                                input_meta, cfg, rescale)
             result_list.append(proposals)
         return result_list
@@ -498,6 +500,7 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
                           cls_scores,
                           bbox_preds,
                           dir_cls_preds,
+                          custom_scores,
                           mlvl_anchors,
                           input_meta,
                           cfg=None,
@@ -527,19 +530,28 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
         mlvl_bboxes = []
         mlvl_scores = []
         mlvl_dir_scores = []
-        for cls_score, bbox_pred, dir_cls_pred, anchors in zip(
-                cls_scores, bbox_preds, dir_cls_preds, mlvl_anchors):
+        mlvl_custom_scores = []
+        for cls_score, bbox_pred, dir_cls_pred, custom_score, anchors in zip(
+                cls_scores, bbox_preds, dir_cls_preds, custom_scores, mlvl_anchors):
             assert cls_score.size()[-2:] == bbox_pred.size()[-2:]
             assert cls_score.size()[-2:] == dir_cls_pred.size()[-2:]
             dir_cls_pred = dir_cls_pred.permute(1, 2, 0).reshape(-1, 2)
             dir_cls_score = torch.max(dir_cls_pred, dim=-1)[1]
-
+            custom_score = custom_score.permute(1,2,0).reshape(-1, self.num_custom)
             cls_score = cls_score.permute(1, 2,
                                           0).reshape(-1, self.num_classes)
             if self.use_sigmoid_cls:
                 scores = cls_score.sigmoid()
             else:
                 scores = cls_score.softmax(-1)
+            
+            if self.use_sigmoid_custom:
+                custom_scores = custom_score.sigmoid()
+            else:
+                custom_scores = custom_score.softmax(-1)
+            
+            custom_score = torch.max(custom_score, dim=-1)[1]
+
             bbox_pred = bbox_pred.permute(1, 2,
                                           0).reshape(-1, self.box_code_size)
 
@@ -554,17 +566,20 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
                 bbox_pred = bbox_pred[topk_inds, :]
                 scores = scores[topk_inds, :]
                 dir_cls_score = dir_cls_score[topk_inds]
+                custom_scores = custom_score[topk_inds]
 
             bboxes = self.bbox_coder.decode(anchors, bbox_pred)
             mlvl_bboxes.append(bboxes)
             mlvl_scores.append(scores)
             mlvl_dir_scores.append(dir_cls_score)
+            mlvl_custom_scores.append(custom_scores)
 
         mlvl_bboxes = torch.cat(mlvl_bboxes)
         mlvl_bboxes_for_nms = xywhr2xyxyr(input_meta['box_type_3d'](
             mlvl_bboxes, box_dim=self.box_code_size).bev)
         mlvl_scores = torch.cat(mlvl_scores)
         mlvl_dir_scores = torch.cat(mlvl_dir_scores)
+        mlvl_custom_scores = torch.cat(mlvl_custom_scores)
 
         if self.use_sigmoid_cls:
             # Add a dummy background class to the front when using sigmoid
@@ -574,8 +589,8 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
         score_thr = cfg.get('score_thr', 0)
         results = box3d_multiclass_nms(mlvl_bboxes, mlvl_bboxes_for_nms,
                                        mlvl_scores, score_thr, cfg.max_num,
-                                       cfg, mlvl_dir_scores)
-        bboxes, scores, labels, dir_scores = results
+                                       cfg, mlvl_dir_scores, mlvl_custom_scores=mlvl_custom_scores)
+        bboxes, scores, labels, custom_scores, dir_scores = results
         if bboxes.shape[0] > 0:
             dir_rot = limit_period(bboxes[..., 6] - self.dir_offset,
                                    self.dir_limit_offset, np.pi)
@@ -583,4 +598,4 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
                 dir_rot + self.dir_offset +
                 np.pi * dir_scores.to(bboxes.dtype))
         bboxes = input_meta['box_type_3d'](bboxes, box_dim=self.box_code_size)
-        return bboxes, scores, labels
+        return bboxes, scores, labels, custom_scores # actually, custom scores means custom category
