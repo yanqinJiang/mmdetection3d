@@ -53,7 +53,7 @@ def custom_clean_data(gt_anno, dt_anno, current_class, difficulty, cus):
         if ((gt_anno['occluded'][i] > MAX_OCCLUSION[difficulty])
                 or (gt_anno['truncated'][i] > MAX_TRUNCATION[difficulty])
                 or (height <= MIN_HEIGHT[difficulty])
-                or (gt_anno['custom'][i] != cus)):
+                or (gt_anno['custom'][i] != cus and gt_anno['custom'][i] != -1)):
             ignore = True
         if valid_class == 1 and not ignore:
             ignored_gt.append(0)
@@ -186,6 +186,10 @@ def custom_compute_statistics_jit(overlaps,
 
     assigned_detection = [False] * det_size
     ignored_threshold = [False] * det_size
+
+    matched_det = [False] * det_size
+    matched_gt_idx = [0] * det_size
+
     if compute_fp:
         for i in range(det_size):
             if (dt_scores[i] < thresh):
@@ -233,6 +237,10 @@ def custom_compute_statistics_jit(overlaps,
                 valid_detection = 1
                 assigned_ignored_det = True
 
+        if (valid_detection != NO_DETECTION) and ignored_gt[i] == 0:
+            matched_det[det_idx] = True
+            matched_gt_idx[det_idx] = i
+
         if (valid_detection == NO_DETECTION) and ignored_gt[i] == 0:
             fn += 1
         elif ((valid_detection != NO_DETECTION)
@@ -251,6 +259,12 @@ def custom_compute_statistics_jit(overlaps,
                 delta_idx += 1
 
             assigned_detection[det_idx] = True
+    
+    '''add more code to set unmatched dt out of range as ignored'''
+    ignored_det = [1 if ((not matched_det[i]) and (dt_custom[i] != cur_cus) and (sign != -1))
+                                else sign for i, sign in enumerate(ignored_det)]
+    ignored_det = [ignored_gt[matched_gt_idx[i]] if (matched_det[i] and (sign != 1))
+                                else sign for i, sign in enumerate(ignored_det)]
     if compute_fp:
         for i in range(det_size):
             if (not (assigned_detection[i] or ignored_det[i] == -1
@@ -267,8 +281,6 @@ def custom_compute_statistics_jit(overlaps,
                     if (ignored_det[j] == -1 or ignored_det[j] == 1):
                         continue
                     if (ignored_threshold[j]):
-                        continue
-                    if dt_custom[j] != cur_cus:
                         continue
                     if overlaps_dt_dc[j, i] > min_overlap:
                         assigned_detection[j] = True

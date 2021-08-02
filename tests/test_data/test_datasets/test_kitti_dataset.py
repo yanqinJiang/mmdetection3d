@@ -5,13 +5,13 @@ import tempfile
 import torch
 
 from mmdet3d.core.bbox import LiDARInstance3DBoxes
-from mmdet3d.datasets import KittiDataset
+from mmdet3d.datasets import CustomKittiDataset
 
 '''
 Kitti Dataset
 '''
 # dataset settings
-dataset_type = 'KittiDataset'
+dataset_type = 'CustomKittiDataset'
 data_root = 'data/kitti/'
 class_names = ['Pedestrian', 'Cyclist', 'Car']
 point_cloud_range = [0, -40, -3, 70.4, 40, 1]
@@ -140,6 +140,8 @@ data = dict(
         modality=input_modality,
         classes=class_names,
         test_mode=True,
+        custom_range=[0, 20, 35, 100000],
+        custom_attr='distance',
         box_type_3d='LiDAR'),
     test=dict(
         type=dataset_type,
@@ -151,6 +153,8 @@ data = dict(
         modality=input_modality,
         classes=class_names,
         test_mode=True,
+        custom_range=[0, 20, 35, 100000],
+        custom_attr='distance',
         box_type_3d='LiDAR'))
 
 evaluation = dict(interval=1, pipeline=eval_pipeline)
@@ -358,25 +362,28 @@ def test_getitem():
 
 
 def test_evaluate():
+    import torch
     if not torch.cuda.is_available():
         pytest.skip('test requires GPU and torch+cuda')
-    data_root, ann_file, classes, pts_prefix, \
-        pipeline, modality, split = _generate_kitti_dataset_config()
-    kitti_dataset = KittiDataset(data_root, ann_file, split, pts_prefix,
-                                 pipeline, classes, modality)
-    boxes_3d = LiDARInstance3DBoxes(
-        torch.tensor(
-            [[8.7314, -1.8559, -1.5997, 0.4800, 1.2000, 1.8900, 0.0100]]))
-    labels_3d = torch.tensor([
-        0,
-    ])
-    scores_3d = torch.tensor([0.5])
-    metric = ['mAP']
-    result = dict(boxes_3d=boxes_3d, labels_3d=labels_3d, scores_3d=scores_3d)
-    ap_dict = kitti_dataset.evaluate([result], metric)
-    assert np.isclose(ap_dict['KITTI/Overall_3D_easy'], 3.0303030303030307)
-    assert np.isclose(ap_dict['KITTI/Overall_3D_moderate'], 3.0303030303030307)
-    assert np.isclose(ap_dict['KITTI/Overall_3D_hard'], 3.0303030303030307)
+    # data_root, ann_file, classes, pts_prefix, \
+    #     pipeline, modality, split = _generate_kitti_dataset_config()
+    kitti_dataset = CustomKittiDataset(data_root, ann_file, split, pts_prefix,
+                                 test_pipeline, class_names, input_modality)
+    # boxes_3d = LiDARInstance3DBoxes(
+    #     torch.tensor(
+    #         [[8.7314, -1.8559, -1.5997, 0.4800, 1.2000, 1.8900, 0.0100]]))
+    # labels_3d = torch.tensor([
+    #     0,
+    # ])
+    # scores_3d = torch.tensor([0.5])
+    # metric = ['mAP']
+    # result = dict(boxes_3d=boxes_3d, labels_3d=labels_3d, scores_3d=scores_3d)
+    input = torch.load('/mnt/lustre/jiangyanqin/project/mmdetection3d/trash/input.pth')
+    results, metric, logger, pklfile_prefix, submission_prefix, show, outdir, pipeline = input
+    ap_dict = kitti_dataset.evaluate(results, metric, logger, pklfile_prefix, submission_prefix, show, outdir, pipeline)
+    # assert np.isclose(ap_dict['KITTI/Overall_3D_easy'], 3.0303030303030307)
+    # assert np.isclose(ap_dict['KITTI/Overall_3D_moderate'], 3.0303030303030307)
+    # assert np.isclose(ap_dict['KITTI/Overall_3D_hard'], 3.0303030303030307)
 
 
 def test_show():
@@ -594,4 +601,4 @@ def test_bbox2result_kitti2d():
     assert np.allclose(det_annos[0]['score'], expected_score)
 
 if __name__ == "__main__":
-    test_getitem()
+    test_evaluate()
