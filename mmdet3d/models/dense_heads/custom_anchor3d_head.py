@@ -118,6 +118,9 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
         # decide whether to use GRL
         self.grad_reverse = self.custom_cfg.get('grad_reverse', False)
 
+        # decide whether to stop gradient of dets in certain range
+        self.stop_gradient = self.custom_cfg.get('stop_gradient', False)
+
         self._init_layers()
         self._init_assigner_sampler()
 
@@ -171,7 +174,14 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
         bbox_pred = self.conv_reg(x)
         if self.grad_reverse:
             reverse_weight = self.custom_cfg.get('reverse_weight', 0.1)
-            custom_pred = self.conv_custom(GradReverse.apply(x, reverse_weight))
+            if self.stop_gradient:
+                x_detach = x.detach()
+                custom_pred = self.conv_custom(GradReverse.apply(x, reverse_weight))
+                custom_pred_detach = self.conv_custom(x_detach)
+                custom_pred = {'attach': custom_pred, 'detach': custom_pred_detach}
+            else:
+                reverse_weight = self.custom_cfg.get('reverse_weight', 0.1)
+                custom_pred = self.conv_custom(GradReverse.apply(x, reverse_weight))
         else:
             custom_pred = self.conv_custom(x)
         dir_cls_preds = None
@@ -269,15 +279,37 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
         divide = self.custom_cfg.get('divide', None)
         custom_targets = custom_targets.reshape(-1)
         custom_weights = custom_weights.reshape(-1)
-        custom_preds = custom_preds.permute(0, 2, 3, 1).reshape(-1, self.num_custom)
+        if self.stop_gradient:
+            custom_preds_attach = custom_preds['attach']
+            custom_preds_detach = custom_preds['detach']
+            custom_preds_attach = custom_preds_attach.permute(0, 2, 3, 1).reshape(-1, self.num_custom)
+            custom_preds_detach = custom_preds_detach.permute(0, 2, 3, 1).reshape(-1, self.num_custom)
+            custom_targets_ = custom_targets.clone() # copy for division
+            stop_range = self.custom_cfg.get('stop_range', [0, 1])
+            custom_weights_attach = custom_weights.clone()
+            custom_weights_detach = custom_weights.clone()
+            for label_d in range(len(divide)-1):
+                custom_targets[(divide[label_d]<custom_targets_) & (custom_targets_ <= divide[label_d+1])] = label_d
+                if label_d in stop_range:
+                    custom_weights_attach[(divide[label_d]<custom_targets_) & (custom_targets_ <= divide[label_d+1])] = 0
+                else:
+                    custom_weights_detach[(divide[label_d]<custom_targets_) & (custom_targets_ <= divide[label_d+1])] = 0
+            # select pos targets
+            pos_custom_targets = custom_targets[pos_inds]
+            pos_custom_weights_attach = custom_weights_attach[pos_inds]
+            pos_custom_weights_detach = custom_weights_detach[pos_inds]
+            pos_custom_pred_attach = custom_preds_attach[pos_inds] 
+            pos_custom_pred_detach = custom_preds_detach[pos_inds] 
+        else:
+            custom_preds = custom_preds.permute(0, 2, 3, 1).reshape(-1, self.num_custom)
 
-        custom_targets_ = custom_targets.clone() # copy for division
-        for label_d in range(len(divide)-1):
-            custom_targets[(divide[label_d]<custom_targets_) & (custom_targets_ <= divide[label_d+1])] = label_d
-        # select pos targets
-        pos_custom_targets = custom_targets[pos_inds]
-        pos_custom_weights = custom_weights[pos_inds]
-        pos_custom_pred = custom_preds[pos_inds]
+            custom_targets_ = custom_targets.clone() # copy for division
+            for label_d in range(len(divide)-1):
+                custom_targets[(divide[label_d]<custom_targets_) & (custom_targets_ <= divide[label_d+1])] = label_d
+            # select pos targets
+            pos_custom_targets = custom_targets[pos_inds]
+            pos_custom_weights = custom_weights[pos_inds]
+            pos_custom_pred = custom_preds[pos_inds]
 
         # dir loss
         if self.use_direction_classifier:
@@ -301,8 +333,16 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
                 pos_bbox_targets,
                 pos_bbox_weights,
                 avg_factor=num_total_samples)
-            loss_custom = self.loss_custom(
-            pos_custom_pred, pos_custom_targets.long(), pos_custom_weights, avg_factor=num_total_samples)
+            
+            if self.stop_gradient:
+                loss_custom_attach = self.loss_custom(
+                pos_custom_pred_attach, pos_custom_targets.long(), pos_custom_weights_attach, avg_factor=num_total_samples)
+                loss_custom_detach = self.loss_custom(
+                pos_custom_pred_detach, pos_custom_targets.long(), pos_custom_weights_detach, avg_factor=num_total_samples)
+                loss_custom = loss_custom_detach + loss_custom_attach
+            else:
+                loss_custom = self.loss_custom(
+                pos_custom_pred, pos_custom_targets.long(), pos_custom_weights, avg_factor=num_total_samples)
 
             # direction classification loss
             loss_dir = None
@@ -486,9 +526,14 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
             dir_cls_pred_list = [
                 dir_cls_preds[i][img_id].detach() for i in range(num_levels)
             ]
-            custom_pred_list = [
-                custom_scores[i][img_id].detach() for i in range(num_levels)
-            ]
+            if self.stop_gradient:
+                custom_pred_list = [
+                    custom_scores[i]['attach'][img_id].detach() for i in range(num_levels)
+                ]
+            else:
+                custom_pred_list = [
+                    custom_scores[i][img_id].detach() for i in range(num_levels)
+                ]
             input_meta = input_metas[img_id]
             proposals = self.get_bboxes_single(cls_score_list, bbox_pred_list,
                                                dir_cls_pred_list, custom_pred_list, mlvl_anchors,

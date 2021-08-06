@@ -55,12 +55,14 @@ model = dict(
         loss_dir=dict(
             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.2),
         loss_custom=dict(
-            type='CrossEntropyLoss', use_sigmoid=True, loss_weight=0.5),
+            type='CrossEntropyLoss', use_sigmoid=True, loss_weight=0.3),
         custom_cfg=dict(
             type='distance', 
             divide=[0, 20, 35, 100000],
             grad_reverse=True,
-            reverse_weight=0.01),),
+            reverse_weight=0.02,
+            stop_gradient=True,
+            stop_range=[0, 1]),),
     # model training and testing settings
     train_cfg=dict(
         assigner=[
