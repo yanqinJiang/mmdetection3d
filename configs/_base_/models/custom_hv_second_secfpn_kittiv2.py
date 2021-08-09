@@ -1,7 +1,7 @@
 voxel_size = [0.05, 0.05, 0.1]
 
 model = dict(
-    type='VoxelNet',
+    type='CustomVoxelNet',
     voxel_layer=dict(
         max_num_points=5,
         point_cloud_range=[0, -40, -3, 70.4, 40, 1],
@@ -24,6 +24,7 @@ model = dict(
         in_channels=[128, 256],
         upsample_strides=[1, 2],
         out_channels=[256, 256],
+        custom_type='density',
         map_enabled=True,
         point_cloud_range=[0, -40, -3, 70.4, 40, 1],),
     bbox_head=dict(

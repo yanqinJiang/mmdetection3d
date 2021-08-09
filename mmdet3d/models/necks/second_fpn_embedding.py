@@ -25,6 +25,7 @@ class SECONDFPN_EMBEDDING(BaseModule):
     def __init__(self,
                  in_channels=[128, 128, 256],
                  out_channels=[256, 256, 256],
+                 custom_type='distance',
                  map_enabled=False,
                  point_cloud_range=[0, -40, -3, 70.4, 40, 1],
                  upsample_strides=[1, 2, 4],
@@ -38,6 +39,7 @@ class SECONDFPN_EMBEDDING(BaseModule):
         super(SECONDFPN_EMBEDDING, self).__init__(init_cfg=init_cfg)
         assert len(out_channels) == len(upsample_strides) == len(in_channels)
         self.out_channels = out_channels
+        self.custom_type = custom_type
         self.map_enabled = map_enabled
         self.point_cloud_range = point_cloud_range
         self.fp16_enabled = False
@@ -78,7 +80,7 @@ class SECONDFPN_EMBEDDING(BaseModule):
             ]
 
     @auto_fp16()
-    def forward(self, x):
+    def forward(self, x, points=None):
         """Forward function.
 
         Args:
@@ -92,13 +94,34 @@ class SECONDFPN_EMBEDDING(BaseModule):
         x = list(x) # change it to list, cause tuple is immutable
         if self.map_enabled:
             input_sizes = [feat.shape[2:] for feat in x]
-        for i in range(len(x)):
-            xi = torch.linspace(self.point_cloud_range[0], self.point_cloud_range[3], input_sizes[i][1], device='cuda')
-            yi = torch.linspace(self.point_cloud_range[1], self.point_cloud_range[4], input_sizes[i][0], device='cuda')
-            xiyi = torch.meshgrid(yi, xi)
-            map = torch.sqrt(xiyi[0]**2 + xiyi[1]**2)
-            map = map.expand(x[i].shape[0], 1, -1, -1)
-            x[i] = torch.cat([x[i], map], dim=1)
+        if self.custom_type == 'distance':
+            for i in range(len(x)):
+                xi = torch.linspace(self.point_cloud_range[0], self.point_cloud_range[3], input_sizes[i][1], device='cuda')
+                yi = torch.linspace(self.point_cloud_range[1], self.point_cloud_range[4], input_sizes[i][0], device='cuda')
+                xiyi = torch.meshgrid(yi, xi)
+                map = torch.sqrt(xiyi[0]**2 + xiyi[1]**2)
+
+                map = map.expand(x[i].shape[0], 1, -1, -1)
+                x[i] = torch.cat([x[i], map], dim=1)
+
+        elif self.custom_type == 'density':
+            for i in range(len(x)):
+                delta_x = (self.point_cloud_range[3] - self.point_cloud_range[0]) / input_sizes[i][0]
+                delta_y = (self.point_cloud_range[4] - self.point_cloud_range[1]) / input_sizes[i][1]
+                map = torch.zeros(input_sizes[i], device='cuda')
+                pt_x = points[i][:, 0].clone()
+                pt_y = points[i][:, 1].clone()
+                pt_x /= delta_x
+                pt_y /= delta_y
+                pt_x = torch.ceil(pt_x).int()
+                pt_y = torch.ceil(pt_y).int()
+                pt_x = torch.clamp(pt_x, min=0, max=map.shape[0]-1)
+                pt_y = torch.clamp(pt_y, min=0, max=map.shape[1]-1)
+                for j in range(len(pt_x)):
+                    map[pt_x[j]][pt_y[j]] += 1
+        
+                map = map.expand(x[i].shape[0], 1, -1, -1)
+                x[i] = torch.cat([x[i], map], dim=1)
         x = tuple(x)
         ups = [deblock(x[i]) for i, deblock in enumerate(self.deblocks)]
 

@@ -18,4 +18,4 @@ spring.submit arun --job-name=${JOB_NAME} \
     --ntasks-per-node=${GPUS_PER_NODE} \
     --cpus-per-task=${CPUS_PER_TASK} \
     -x BJ-IDC1-10-10-17-24 \
-    "python -u tools/train.py ${CONFIG} --work-dir=${WORK_DIR} --cfg-options lr=0.0022 --launcher=slurm "
+    "python -u tools/train.py ${CONFIG} --work-dir=${WORK_DIR} --cfg-options lr=0.0016 --launcher=slurm "

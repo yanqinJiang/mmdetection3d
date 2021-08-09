@@ -3,7 +3,7 @@ import torch
 from mmcv.runner import BaseModule, force_fp32
 from torch import nn as nn
 
-from mmdet3d.core import (PseudoSampler, box3d_multiclass_nms, limit_period,
+from mmdet3d.core import (PseudoSampler, box3d_multiclass_nms_custom, limit_period,
                           xywhr2xyxyr)
 from mmdet.core import (build_anchor_generator, build_assigner,
                         build_bbox_coder, build_sampler, multi_apply)
@@ -632,7 +632,7 @@ class CustomAnchor3DHead(BaseModule, CustomAnchorTrainMixin):
             mlvl_scores = torch.cat([mlvl_scores, padding], dim=1)
 
         score_thr = cfg.get('score_thr', 0)
-        results = box3d_multiclass_nms(mlvl_bboxes, mlvl_bboxes_for_nms,
+        results = box3d_multiclass_nms_custom(mlvl_bboxes, mlvl_bboxes_for_nms,
                                        mlvl_scores, score_thr, cfg.max_num,
                                        cfg, mlvl_dir_scores, mlvl_custom_scores=mlvl_custom_scores)
         bboxes, scores, labels, custom_scores, dir_scores = results
