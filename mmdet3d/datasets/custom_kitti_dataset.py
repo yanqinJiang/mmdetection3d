@@ -31,7 +31,7 @@ class CustomKittiDataset(KittiDataset):
                     filter_empty_gt=True,
                     test_mode=False,
                     pcd_limit_range=[0, -40, -3, 70.4, 40, 0.0],
-                    custom_range=[0, 25, 35, 100000],
+                    custom_range=[0, 50000, 200000, 100000],
                     custom_attr='distance'):
         super().__init__(
             data_root=data_root,
@@ -251,7 +251,6 @@ class CustomKittiDataset(KittiDataset):
             for label_d in range(len(self.custom_range)-1):
                 tmp = copy.deepcopy(result_files[i]['custom'])
                 result_files[i]['custom'][(self.custom_range[label_d]<tmp) & (tmp <= self.custom_range[label_d+1])] = label_d
-                
         #_gt_custom = copy.deepcopy(gt_custom)
         for idx, gt in enumerate(gt_annos):
             gt.update({'custom': gt_custom[idx]})

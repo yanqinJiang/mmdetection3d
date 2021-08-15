@@ -24,7 +24,7 @@ model = dict(
         in_channels=[128, 256],
         upsample_strides=[1, 2],
         out_channels=[256, 256],
-        custom_type='density',
+        custom_type='distance',
         map_enabled=True,
         point_cloud_range=[0, -40, -3, 70.4, 40, 1],),
     bbox_head=dict(
@@ -58,11 +58,11 @@ model = dict(
         loss_custom=dict(
             type='CrossEntropyLoss', use_sigmoid=True, loss_weight=0.3),
         custom_cfg=dict(
-            type='distance', 
-            divide=[0, 20, 35, 100000],
-            grad_reverse=True,
+            type='density', 
+            divide=[0, 6, 28, 100000],
+            grad_reverse=False,
             reverse_weight=0.02,
-            stop_gradient=True,
+            stop_gradient=False,
             stop_range=[0, 1]),),
     # model training and testing settings
     train_cfg=dict(

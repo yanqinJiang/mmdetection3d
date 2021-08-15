@@ -125,7 +125,7 @@ data = dict(
         classes=class_names,
         test_mode=True,
         box_type_3d='LiDAR',
-        custom_range=[0, 1000, 10000, 100000],
+        custom_range=[0, 20, 35, 100000],
         custom_attr='distance',),
     test=dict(
         type=dataset_type,
@@ -137,7 +137,7 @@ data = dict(
         modality=input_modality,
         classes=class_names,
         test_mode=True,
-        custom_range=[0, 1000, 10000, 100000],
+        custom_range=[0, 20, 35, 100000],
         custom_attr='distance',
         box_type_3d='LiDAR'))
 

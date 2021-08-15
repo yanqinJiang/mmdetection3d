@@ -30,6 +30,7 @@ db_sampler = dict(
     sample_groups=dict(Car=12, Pedestrian=6, Cyclist=6))
 
 file_client_args = dict(backend='disk')
+custom_range=[0, 20, 35, 1000000]
 # Uncomment the following if use ceph or other file clients.
 # See https://mmcv.readthedocs.io/en/latest/api.html#mmcv.fileio.FileClient
 # for more details.
@@ -140,7 +141,7 @@ data = dict(
         modality=input_modality,
         classes=class_names,
         test_mode=True,
-        custom_range=[0, 20, 35, 100000],
+        custom_range=[0, 10000, 20000, 100000],
         custom_attr='distance',
         box_type_3d='LiDAR'),
     test=dict(
@@ -153,7 +154,7 @@ data = dict(
         modality=input_modality,
         classes=class_names,
         test_mode=True,
-        custom_range=[0, 20, 35, 100000],
+        custom_range=[0, 10000, 20000, 100000],
         custom_attr='distance',
         box_type_3d='LiDAR'))
 
@@ -368,7 +369,7 @@ def test_evaluate():
     # data_root, ann_file, classes, pts_prefix, \
     #     pipeline, modality, split = _generate_kitti_dataset_config()
     kitti_dataset = CustomKittiDataset(data_root, ann_file, split, pts_prefix,
-                                 test_pipeline, class_names, input_modality)
+                                 test_pipeline, class_names, input_modality, custom_range=custom_range)
     # boxes_3d = LiDARInstance3DBoxes(
     #     torch.tensor(
     #         [[8.7314, -1.8559, -1.5997, 0.4800, 1.2000, 1.8900, 0.0100]]))

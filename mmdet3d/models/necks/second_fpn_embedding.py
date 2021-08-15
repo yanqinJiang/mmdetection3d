@@ -94,6 +94,7 @@ class SECONDFPN_EMBEDDING(BaseModule):
         x = list(x) # change it to list, cause tuple is immutable
         if self.map_enabled:
             input_sizes = [feat.shape[2:] for feat in x]
+
         if self.custom_type == 'distance':
             for i in range(len(x)):
                 xi = torch.linspace(self.point_cloud_range[0], self.point_cloud_range[3], input_sizes[i][1], device='cuda')
@@ -108,20 +109,28 @@ class SECONDFPN_EMBEDDING(BaseModule):
             for i in range(len(x)):
                 delta_x = (self.point_cloud_range[3] - self.point_cloud_range[0]) / input_sizes[i][0]
                 delta_y = (self.point_cloud_range[4] - self.point_cloud_range[1]) / input_sizes[i][1]
-                map = torch.zeros(input_sizes[i], device='cuda')
-                pt_x = points[i][:, 0].clone()
-                pt_y = points[i][:, 1].clone()
-                pt_x /= delta_x
-                pt_y /= delta_y
-                pt_x = torch.ceil(pt_x).int()
-                pt_y = torch.ceil(pt_y).int()
-                pt_x = torch.clamp(pt_x, min=0, max=map.shape[0]-1)
-                pt_y = torch.clamp(pt_y, min=0, max=map.shape[1]-1)
-                for j in range(len(pt_x)):
-                    map[pt_x[j]][pt_y[j]] += 1
-        
-                map = map.expand(x[i].shape[0], 1, -1, -1)
+                map_list = []
+                # map = torch.zeros(len(x[0]), 1, input_sizes[i][0], input_sizes[i][1], device='cuda')
+                for j in range(len(x[0])):
+                    map = torch.zeros(input_sizes[i], device='cuda')
+                    pt_x = points[j][:, 0].clone()
+                    pt_y = points[j][:, 1].clone()
+                    pt_x /= delta_x
+                    pt_y /= delta_y
+                    pt_x = torch.ceil(pt_x).long()
+                    pt_y = torch.ceil(pt_y).long()
+                    pt_x = torch.clamp(pt_x, min=0, max=map.shape[0]-1)
+                    pt_y = torch.clamp(pt_y, min=0, max=map.shape[1]-1)
+                    index = torch.stack([pt_x, pt_y], dim=0)
+                    uni_index, count = torch.unique(index, dim=1, return_counts=True)
+                    map[tuple(uni_index)] += count
+                    map_list.append(map)
+                    # for k in range(len(pt_x)):
+                    #     map[j][0][pt_x[k]][pt_y[k]] += 1
+                map = torch.stack(map_list, dim=0)
+                map = map.unsqueeze(1)
                 x[i] = torch.cat([x[i], map], dim=1)
+
         x = tuple(x)
         ups = [deblock(x[i]) for i, deblock in enumerate(self.deblocks)]
 

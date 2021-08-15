@@ -3,4 +3,5 @@
 spring.submit run --gpu -n1 --gres=gpu:1 \
 "python tools/train.py \
 configs/second/custom_hv_second_secfpn_6x8_80e_kitti-3d-3classv2.py \
---work-dir experiments/debug"
+--work-dir experiments/debug \
+--options lr=0.0016"
