@@ -44,7 +44,7 @@ class CustomVoxelNet(SingleStage3DDetector):
         batch_size = coors[-1, 0].item() + 1
         x = self.middle_encoder(voxel_features, coors, batch_size)
         x = self.backbone(x)
-        if self.with_neck and self.map_enabled:
+        if self.with_neck:
             x = self.neck(x, points)
         return x
 
