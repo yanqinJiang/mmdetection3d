@@ -27,6 +27,7 @@ class SECONDFPN_EMBEDDING(BaseModule):
                  out_channels=[256, 256, 256],
                  custom_type='distance',
                  map_enabled=False,
+                 normalize=False,
                  point_cloud_range=[0, -40, -3, 70.4, 40, 1],
                  upsample_strides=[1, 2, 4],
                  norm_cfg=dict(type='BN', eps=1e-3, momentum=0.01),
@@ -41,6 +42,7 @@ class SECONDFPN_EMBEDDING(BaseModule):
         self.out_channels = out_channels
         self.custom_type = custom_type
         self.map_enabled = map_enabled
+        self.normalize = normalize
         self.point_cloud_range = point_cloud_range
         self.fp16_enabled = False
 
@@ -102,6 +104,12 @@ class SECONDFPN_EMBEDDING(BaseModule):
                     xiyi = torch.meshgrid(yi, xi)
                     map = torch.sqrt(xiyi[0]**2 + xiyi[1]**2)
 
+                    # normalize
+                    if self.normalize:
+                        (var, mean) = torch.var_mean(map)
+                        map -= mean
+                        map /= torch.sqrt(var)
+
                     map = map.expand(x[i].shape[0], 1, -1, -1)
                     x[i] = torch.cat([x[i], map], dim=1)
 
@@ -124,6 +132,12 @@ class SECONDFPN_EMBEDDING(BaseModule):
                         index = torch.stack([pt_x, pt_y], dim=0)
                         uni_index, count = torch.unique(index, dim=1, return_counts=True)
                         map[tuple(uni_index)] += count
+
+                        # normalize
+                        if self.normalize:
+                            (var, mean) = torch.var_mean(map)
+                            map -= mean
+                            map /= torch.sqrt(var)
                         map_list.append(map)
                         # for k in range(len(pt_x)):
                         #     map[j][0][pt_x[k]][pt_y[k]] += 1
